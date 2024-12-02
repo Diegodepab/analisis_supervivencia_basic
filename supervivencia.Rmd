@@ -1,0 +1,92 @@
+---
+title: "Análisis de supervivencia"
+author: "Julio Montes Torres"
+coauthor: "Diegodepab"
+date: "2024-12-02"
+output: html_document
+---
+
+El **análisis de supervivencia** es una técnica estadística utilizada para estudiar el tiempo hasta que ocurre un evento de interés, como la muerte, la recuperación de una enfermedad o el fallo de un sistema. A diferencia de otros análisis que sólo consideran si el evento ocurre o no, este enfoque se centra en medir el tiempo que transcurre hasta dicho evento, lo cual es especialmente útil cuando se tienen datos censurados (individuos para los cuales el evento no ha ocurrido durante el periodo de estudio). En este contexto, se emplean métodos como las curvas de **Kaplan-Meier**, el **modelo de Cox de riesgos proporcionales** y la estimación de la **función de riesgo**, que permiten modelar la probabilidad de que ocurra el evento y el efecto de diferentes covariables sobre el tiempo de supervivencia.
+
+
+1. **`survival`**: Esta librería es la base para realizar análisis de supervivencia en R. Proporciona funciones para ajustar y analizar modelos como curvas de **Kaplan-Meier** y el **modelo de Cox de riesgos proporcionales**. Además, permite trabajar con datos censurados y calcular estadísticas de supervivencia para diferentes tipos de modelos (paramétricos y no paramétricos).
+
+2. **`muhaz`**: Se utiliza para estimar la **función de riesgo** (hazard function) de manera no paramétrica. Es ideal para analizar cómo varía el riesgo de que ocurra un evento a lo largo del tiempo, generando estimaciones suaves y gráficos que ayudan a detectar patrones en el riesgo de eventos.
+
+3. **`survminer`**: Facilita la **visualización gráfica** de los análisis de supervivencia. Permite generar gráficos elegantes, como curvas de Kaplan-Meier, con la capacidad de integrar resultados del modelo de Cox y tablas de riesgo. También se basa en **`ggplot2`**, lo que ofrece una mayor personalización y mejora la estética de los gráficos.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(survival)
+library(muhaz)
+library(survminer)
+```
+
+## Lectura de datos
+
+Este trabajo utiliza un **dataset desidentificado** de pacientes con cáncer de pulmón, que incluye variables como **edad**, **sexo**, **estado funcional** (según la escala de Karnofsky), **tiempo de supervivencia** en días, **ph.karnot**, **pat.karnot**, **meal.cal**, **wt.loss** y **estado vital** (vivo o muerto). A continuación, se presenta el proceso de lectura y visualización de estos datos:
+
+```{r lectura_de_Dato}
+datos <- read.csv("supervivencia.csv")
+datos$X <- NULL
+```
+
+
+## Curva de supervivencia
+
+```{r}
+ajuste <- survfit(Surv(time, status - 1) ~ 1, data = datos)
+ggsurvplot(ajuste,
+           title = "Supervivencia global",
+           ylab = "Supervivencia global",
+           xlab = "Tiempo en días",
+           break.time.by = 100,
+           risk.table = T,
+           conf.int = T,
+           legend = "none",
+           censor = T,
+           risk.table.title = "Pacientes en riesgo",
+           risk.table.x.text = F,
+           risk.table.y.text = T)
+```
+
+## Comparación de curvas de supervivencia
+En este ejemplo, se utiliza la variable sexo para dividir a los pacientes en dos grupos y generar curvas de supervivencia para cada grupo. 
+
+```{r}
+ajuste_sexo <- survfit(Surv(time, status - 1) ~ sex, data = datos)
+ggsurvplot(ajuste_sexo,
+           title = "Supervivencia por sexo",
+           ylab = "Supervivencia global por sexo",
+           xlab = "Tiempo en días",
+           break.time.by = 100,
+           conf.int = T,
+           censor = T)
+```
+
+## Función de riesgo acumulado
+
+```{r}
+ggsurvplot(ajuste, fun = function(y) - log(y),
+           ylab = "Riesgo global",
+           xlab = "Tiempo en días",
+           conf.int = F,
+           legend = "none",)
+```
+
+## Función de riesgo
+
+```{r}
+ajuste_riesgo <- muhaz(datos$time, datos$status - 1, bw.method="g")
+plot(ajuste_riesgo)
+```
+
+## Modelo de regresión de Cox
+
+```{r}
+modelo_cox <- coxph(Surv(time, status -1 ) ~ age + ph.karno + sex, data=datos)
+modelo_cox_gg <- cox.zph(modelo_cox)
+ggcoxzph(modelo_cox_gg)
+ajuste_cox <- survfit(modelo_cox)
+plot(ajuste_cox)
+```
